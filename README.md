@@ -16,9 +16,10 @@ This package provides two example usages.
 
 Run `python2 example_interactive.py /path/to/sid/file` to start playback.
 
-You can control speed with `+` and `-`. 
-Next / previous song of current directory can be played typing `p` and `n`
-`Space` for pause
+ * You can control speed with `+` and `-`. 
+ * Next / previous song of current directory can be played typing `p` and `n`
+ * `Space` for pause
+ * `s` in order to seek 10 seconds
 
 ## example_simple.py
 Run `python2 example_simple.py /path/to/sid/file` to start playback.

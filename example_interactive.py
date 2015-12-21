@@ -102,7 +102,7 @@ if __name__ == "__main__":
                 if c == 'p':
                     app.play_from_listing(app.PREV)
                 if c == 's':
-                    app.seek(30)
+                    app.seek(10)
             except IOError:
                 pass
     except KeyboardInterrupt:
