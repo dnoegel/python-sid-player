@@ -29,7 +29,7 @@ It boils down to this snippet:
 ```
 import gobject
 
-from sidplay import SidBackend
+from sidplay.Player import SidBackend
 
 app = SidBackend()
 app.play(YOUR_FILE)

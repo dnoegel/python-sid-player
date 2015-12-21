@@ -2,9 +2,12 @@
 # coding:utf-8
 
 import gobject
-import termios, fcntl, sys, os
+import termios
+import fcntl
+import sys
+import os
 
-from sidplay import SidBackend
+from sidplay.Player import SidBackend
 
 """
 Example of how to use the SID player in an interactive way

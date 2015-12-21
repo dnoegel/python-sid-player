@@ -3,7 +3,7 @@
 
 import gobject
 
-from sidplay import SidBackend
+from sidplay.Player import SidBackend
 
 """
 The simplest implementation of the SID player

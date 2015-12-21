@@ -8,12 +8,13 @@ import gst
 
 from threading import Timer
 
+
 class SidBackend():
     """SidPlay plays given SID tune files and allows (un)pausing and speeding up SID tunes
     """
 
     def __init__(self, sid_config={}):
-        self.build_pipleine()
+        self.__build_pipleine()
         self.sid_config = sid_config
 
         self.current_song = None
@@ -28,7 +29,7 @@ class SidBackend():
         """
         self.pipeline.set_state(gst.STATE_READY)
 
-        self.reset_siddec()
+        self.__reset_siddec()
 
         self.audiosrc.set_property('location', file)
         self.siddec.set_property('tune', tune)
@@ -43,39 +44,19 @@ class SidBackend():
 
         print "Now playing ", self.current_song
 
-    def seek(self, seconds, from_start = False):
+    def seek(self, seconds, from_start=False):
         """Siddec does not support seeking, so we need to emulate it"""
 
-        speed_up = 40 # this is the internal speed up factor
+        speed_up = 40  # this is the internal speed up factor
 
         if from_start:
             self.play(self.current_song, self.current_tune, self.current_length)
 
-        self.volume.set_property('mute', True) # mute, so we don't head the speed up
+        self.volume.set_property('mute', True)  # mute, so we don't head the speed up
         self.speed.set_property('speed', speed_up)
 
         # Set timer, so we can stop the speed
-        Timer(seconds * 1.0 / speed_up, self.stop_seek).start()
-
-    def stop_seek(self):
-        """Stop seeking, set back speed"""
-        self.speed.set_property('speed', 1)
-        self.volume.set_property('mute', False)
-
-    def reset_siddec(self):
-        """Resets the siddec element due to issues
-
-        It seems the siddec element cannot handle changes in the filesrc's location property.
-        It will keep playing the previous audio.
-        This workaround will remove it from the pipe and re-add a new siddec element.
-        Additional resource for this topic:
-            http://gstreamer.freedesktop.org/data/doc/gstreamer/head/manual/html/section-dynamic-pipelines.html
-        """
-        self.siddec.set_state(gst.STATE_NULL)
-        self.pipeline.remove(self.siddec)
-        self.siddec = gst.element_factory_make("siddec", "siddec")
-        self.pipeline.add(self.siddec)
-        gst.element_link_many(self.audiosrc, self.siddec, self.queue)
+        Timer(seconds * 1.0 / speed_up, self.__stop_seek).start()
 
     def stop(self):
         self.current_tune = 0
@@ -106,7 +87,27 @@ class SidBackend():
     def get_file(self):
         return self.audiosrc.get_property('location')
 
-    def build_pipleine(self):
+    def __stop_seek(self):
+        """Stop seeking, set back speed"""
+        self.speed.set_property('speed', 1)
+        self.volume.set_property('mute', False)
+
+    def __reset_siddec(self):
+        """Resets the siddec element due to issues
+
+        It seems the siddec element cannot handle changes in the filesrc's location property.
+        It will keep playing the previous audio.
+        This workaround will remove it from the pipe and re-add a new siddec element.
+        Additional resource for this topic:
+            http://gstreamer.freedesktop.org/data/doc/gstreamer/head/manual/html/section-dynamic-pipelines.html
+        """
+        self.siddec.set_state(gst.STATE_NULL)
+        self.pipeline.remove(self.siddec)
+        self.siddec = gst.element_factory_make("siddec", "siddec")
+        self.pipeline.add(self.siddec)
+        gst.element_link_many(self.audiosrc, self.siddec, self.queue)
+
+    def __build_pipleine(self):
         """Internal helper to build the gstreamer pipleine"""
 
         self.pipeline = gst.Pipeline("sidplay-pipeline")
