@@ -5,17 +5,22 @@ import pygst
 
 pygst.require("0.10")
 import gst
-import gobject
-import termios, fcntl, sys, os
+
+from threading import Timer
 
 class SidBackend():
     """SidPlay plays given SID tune files and allows (un)pausing and speeding up SID tunes
     """
 
-    def __init__(self):
+    def __init__(self, sid_config={}):
         self.build_pipleine()
+        self.sid_config = sid_config
 
-    def play(self, file, tune=0):
+        self.current_song = None
+        self.current_tune = 0
+        self.current_length = 0
+
+    def play(self, file, tune=0, length=0):
         """Play the given TUNE of given file FILE
 
         :param file: The SID file to play
@@ -27,8 +32,35 @@ class SidBackend():
 
         self.audiosrc.set_property('location', file)
         self.siddec.set_property('tune', tune)
+
+        for key in self.sid_config:
+            self.siddec.set_property(key, self.sid_config[key])
+
         self.pipeline.set_state(gst.STATE_PLAYING)
-        print "Will now playing", self.audiosrc.get_property('location')
+        self.current_song = file
+        self.current_tune = tune
+        self.current_length = length
+
+        print "Now playing ", self.current_song
+
+    def seek(self, seconds, from_start = False):
+        """Siddec does not support seeking, so we need to emulate it"""
+
+        speed_up = 40 # this is the internal speed up factor
+
+        if from_start:
+            self.play(self.current_song, self.current_tune, self.current_length)
+
+        self.volume.set_property('mute', True) # mute, so we don't head the speed up
+        self.speed.set_property('speed', speed_up)
+
+        # Set timer, so we can stop the speed
+        Timer(seconds * 1.0 / speed_up, self.stop_seek).start()
+
+    def stop_seek(self):
+        """Stop seeking, set back speed"""
+        self.speed.set_property('speed', 1)
+        self.volume.set_property('mute', False)
 
     def reset_siddec(self):
         """Resets the siddec element due to issues
@@ -46,6 +78,9 @@ class SidBackend():
         gst.element_link_many(self.audiosrc, self.siddec, self.queue)
 
     def stop(self):
+        self.current_tune = 0
+        self.current_song = None
+        self.current_length = 0
         self.pipeline.set_state(gst.STATE_NULL)
 
     def play_pause(self):
@@ -80,107 +115,8 @@ class SidBackend():
         self.siddec = gst.element_factory_make('siddec', 'siddec')
         self.queue = gst.element_factory_make('queue', 'queue')
         self.speed = gst.element_factory_make('speed', 'speed')
+        self.volume = gst.element_factory_make('volume', 'volume')
         self.sink = gst.element_factory_make("autoaudiosink", "sink")
 
-        self.pipeline.add_many(self.audiosrc, self.siddec, self.queue, self.speed, self.sink)
-        gst.element_link_many(self.audiosrc, self.siddec, self.queue, self.speed, self.sink)
-
-class Terminal:
-    """Takes care of configuring the terminal to our needs (interactive even with gobject main loop)"""
-
-    def setup(self):
-        """Prepare the current terminal for our needs"""
-
-        self.fd = sys.stdin.fileno()
-
-        self.oldterm = termios.tcgetattr(self.fd)
-        newattr = termios.tcgetattr(self.fd)
-        newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
-        termios.tcsetattr(self.fd, termios.TCSANOW, newattr)
-
-        self.oldflags = fcntl.fcntl(self.fd, fcntl.F_GETFL)
-        fcntl.fcntl(self.fd, fcntl.F_SETFL, self.oldflags)
-
-    def destroy(self):
-        """Reset the terminal to the previous default"""
-
-        termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.oldterm)
-        fcntl.fcntl(self.fd, fcntl.F_SETFL, self.oldflags)
-
-
-class Player(SidBackend):
-    """
-    Simple domain wrapper around the orginal SidBackend
-    This one may also contain more specific logic like "play next file"
-    """
-    NEXT = 1
-    PREV = -1
-
-    def __init__(self):
-        SidBackend.__init__(self)
-
-    def play_from_listing(self, delta):
-        self.stop()
-        current_file = self.get_file()
-        dir = os.path.dirname(current_file)
-        file_name = os.path.basename(current_file)
-        all_files =  sorted(os.listdir(dir))
-
-        position = all_files.index(file_name)
-        next = position + delta
-        if len(all_files) < next + delta:
-            next = 0
-        if next < 0:
-            next = len(all_files)-1
-
-
-        next_file = os.path.join(dir, all_files[next])
-
-        self.play(next_file)
-
-
-if __name__ == "__main__":
-
-    # Enforce file name
-    if len(sys.argv) < 2:
-        print "No file specified"
-        sys.exit(1)
-    file = sys.argv[1]
-
-    # Play the sid file
-    app = Player()
-    app.play(file)
-
-    # Start the gobject loop that gstreamer needs
-    loop = gobject.MainLoop()
-    gobject.threads_init()
-    context = loop.get_context()
-
-    # Prepare the terminal
-    terminal = Terminal()
-    terminal.setup()
-    context.iteration(True)
-
-    # Main loop - read input from terminal
-    try:
-        while 1:
-            try:
-                c = sys.stdin.read(1)
-
-                if c == ' ':
-                    app.play_pause()
-                if c == '+':
-                    app.change_speed(0.1)
-                if c == '-':
-                    app.change_speed(-0.1)
-                if c == 'n':
-                    app.play_from_listing(app.NEXT)
-                if c == 'p':
-                    app.play_from_listing(app.PREV)
-            except IOError:
-                pass
-    except KeyboardInterrupt:
-        print "Exiting…"
-
-    # Reset the terminal
-    terminal.destroy()
+        self.pipeline.add_many(self.audiosrc, self.siddec, self.queue, self.speed, self.volume, self.sink)
+        gst.element_link_many(self.audiosrc, self.siddec, self.queue, self.speed, self.volume, self.sink)

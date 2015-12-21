@@ -10,8 +10,28 @@ You will at least the following packes:
  * Python2 - There are bindings for Gstreamer and Python3, too - so porting all this to Python3 seems doable
  
 # Usage
-Run `python2 sidplay.py /path/to/sid/file` to start playback.
+This package provides two example usages.
+
+## example_interactive.py
+
+Run `python2 example_interactive.py /path/to/sid/file` to start playback.
 
 You can control speed with `+` and `-`. 
 Next / previous song of current directory can be played typing `p` and `n`
 `Space` for pause
+
+## example_simple.py
+Run `python2 example_simple.py /path/to/sid/file` to start playback.
+
+It boils down to this snippet:
+
+```
+import gobject
+
+from sidplay import SidBackend
+
+app = SidBackend()
+app.play(YOUR_FILE)
+
+gobject.MainLoop().run()
+```
