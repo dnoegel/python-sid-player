@@ -106,6 +106,8 @@ if __name__ == "__main__":
                     app.play_from_listing(app.PREV)
                 if c == 's':
                     app.seek(10)
+                if c == 'i':
+                    print app.get_time()
             except IOError:
                 pass
     except KeyboardInterrupt:

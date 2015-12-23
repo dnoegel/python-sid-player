@@ -7,6 +7,7 @@ pygst.require("0.10")
 import gst
 
 from threading import Timer
+import time
 
 
 class SidBackend():
@@ -20,6 +21,11 @@ class SidBackend():
         self.current_song = None
         self.current_tune = 0
         self.current_length = 0
+
+        self.__playback_start_time = 0
+
+    def get_time(self):
+        return time.time() - self.__playback_start_time
 
     def play(self, file, tune=0, length=0):
         """Play the given TUNE of given file FILE
@@ -37,12 +43,11 @@ class SidBackend():
         for key in self.sid_config:
             self.siddec.set_property(key, self.sid_config[key])
 
+        self.__playback_start_time = time.time()
         self.pipeline.set_state(gst.STATE_PLAYING)
         self.current_song = file
         self.current_tune = tune
         self.current_length = length
-
-        print "Now playing ", self.current_song
 
     def seek(self, seconds, from_start=False):
         """Siddec does not support seeking, so we need to emulate it"""
@@ -50,10 +55,15 @@ class SidBackend():
         speed_up = 40  # this is the internal speed up factor
 
         if from_start:
-            self.play(self.current_song, self.current_tune, self.current_length)
+            song, tune, length = self.current_song, self.current_tune, self.current_length
+            self.stop()
+            self.play(song, tune, length)
 
+        self.__playback_start_time -= seconds - (seconds * 1.0 / speed_up)
         self.volume.set_property('mute', True)  # mute, so we don't head the speed up
         self.speed.set_property('speed', speed_up)
+
+
 
         # Set timer, so we can stop the speed
         Timer(seconds * 1.0 / speed_up, self.__stop_seek).start()
@@ -62,6 +72,7 @@ class SidBackend():
         self.current_tune = 0
         self.current_song = None
         self.current_length = 0
+        self.__playback_start_time = 0
         self.pipeline.set_state(gst.STATE_NULL)
 
     def play_pause(self):
@@ -73,6 +84,9 @@ class SidBackend():
             self.pipeline.set_state(gst.STATE_PAUSED)
         else:
             self.pipeline.set_state(gst.STATE_PLAYING)
+
+    def is_playing(self):
+        return gst.STATE_PLAYING in self.pipeline.get_state()
 
     def change_speed(self, delta):
         """Change the speed by DELTA
